@@ -1,6 +1,8 @@
 import React from 'react'
 import moment from 'moment'
 import {Card, Button, Table, Form, Select, Modal, message} from 'antd'
+import axios from 'axios'
+import {pagination} from "../../utils/util";
 
 const FormItem = Form.Item;
 const Option = Select.Option;
@@ -18,6 +20,10 @@ class City extends React.Component {
     page: 1
   }
 
+  componentDidMount(){
+    this.handleCityData(this.params.page);
+  }
+
   //开通城市
   handleOpenCity = () => {
     this.setState({
@@ -27,7 +33,47 @@ class City extends React.Component {
 
   //城市开通提交
   handleSubmit = () => {
-    console.log('城市开通')
+    const cityInfo = this.cityForm.props.form.getFieldsValue();
+    axios.post('/city/open',{
+      city_id:cityInfo.city_id,
+      op_mode:cityInfo.op_mode,
+      use_mode:cityInfo.use_mode
+    }).then(res=>{
+      if(res.data.code === 0){
+        this.handleCityData(0);
+        this.setState({
+          isShowOpenCity:false
+        })
+      }else {
+        message.warn('系统提示',res.data.msg)
+      }
+    })
+  }
+
+  //获取城市数据
+  handleCityData = (page)=>{
+    const self = this;
+    axios.get('/city/list',{
+      params:{
+        page
+      }
+    }).then(res=>{
+      if(res.data.code === 0){
+        let data = res.data.data.list.map((item,index)=>{
+          item.key = index+1;
+          item.id = index+1;
+          // delete item.city_admins;
+          return item;
+        });
+        this.setState({
+          list:data,
+          pagination:pagination(res.data,(current)=>{
+            self.params.page = current;
+            self.handleCityData(current)
+          })
+        })
+      }
+    })
   }
 
   render() {
@@ -67,7 +113,9 @@ class City extends React.Component {
       }, {
         title: '操作时间',
         dataIndex: 'update_time',
-        render: moment().format('YYYY-MM-DD')
+        render(time){
+          return  moment(time).format('YYYY-MM-DD HH:mm:ss')
+        }
       }, {
         title: '操作人',
         dataIndex: 'sys_user_name'
@@ -85,6 +133,8 @@ class City extends React.Component {
           <Table
             bordered
             columns={columns}
+            dataSource={this.state.list}
+            pagination={this.state.pagination}
           />
         </div>
         <Modal
@@ -97,7 +147,7 @@ class City extends React.Component {
           }}
           onOk={this.handleSubmit}
         >
-          <OpenCityForm></OpenCityForm>
+          <OpenCityForm wrappedComponentRef={(inst)=>{this.cityForm = inst}}></OpenCityForm>
         </Modal>
       </div>
     )
@@ -211,7 +261,7 @@ class OpenCityForm extends React.Component {
             getFieldDecorator('use_mode', {
               initialValue: '1'
             })(
-              <Select style={{width: 100}}>
+              <Select style={{width: 130}}>
                 <Option value="1">指定停车点</Option>
                 <Option value="2">禁停区</Option>
               </Select>
